@@ -1,0 +1,66 @@
+services:
+  identity-postgres:
+    image: postgres:16
+    container_name: identity-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: identity
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  identity-pgadmin:
+    image: dpage/pgadmin4
+    container_name: identity-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin123!
+    ports:
+      - "8081:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      identity-postgres:
+        condition: service_healthy
+
+  identity-keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: identity-keycloak
+    restart: always
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://identity-postgres:5432/keycloak
+      KC_DB_USERNAME: keycloakuser
+      KC_DB_PASSWORD: keycloakpassword
+
+      KC_HEALTH_ENABLED: "true"
+      KC_METRICS_ENABLED: "true"
+      KC_LOG: console,file
+      KC_LOG_LEVEL: INFO
+
+      KC_HOSTNAME_STRICT: "false"
+      KC_THEME_CACHE_ENABLED: "false"
+    command: ["start-dev","--http-port=8080"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      identity-postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  pgadmin-data:
