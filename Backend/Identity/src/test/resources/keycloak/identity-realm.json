@@ -1,0 +1,39 @@
+{
+  "realm": "IdentityRealm",
+  "enabled": true,
+
+  "components": {
+    "org.keycloak.userprofile.UserProfileProvider": [
+      {
+        "name": "declarative-user-profile",
+        "providerId": "declarative-user-profile",
+        "subType": "realm",
+        "subComponents": {},
+        "config": {
+          "attributes": [
+            "[{\"name\":\"city\",\"displayName\":\"City\",\"required\":false,\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]}}]"
+          ]
+        }
+      }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "identity-service",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "directAccessGrantsEnabled": true
+    }
+  ],
+
+  "roles": {
+    "client": {
+      "identity-service": [
+        { "name": "guest" },
+        { "name": "host" }
+      ]
+    }
+  }
+}

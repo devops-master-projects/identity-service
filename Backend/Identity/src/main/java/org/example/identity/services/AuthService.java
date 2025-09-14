@@ -37,7 +37,9 @@ public class AuthService {
         user.setEnabled(true);
 
         Map<String, List<String>> attributes = new HashMap<>();
-        attributes.put("city", List.of(request.getAddress()));
+        if (request.getAddress() != null && !request.getAddress().isBlank()) {
+            attributes.put("city", List.of(request.getAddress()));
+        }
         user.setAttributes(attributes);
 
         Response response = keycloak.realm(keycloakRealm).users().create(user);
@@ -66,6 +68,10 @@ public class AuthService {
                 .get(request.getRole())
                 .toRepresentation();
 
+        if (role == null) {
+            throw new IllegalStateException("Role not found: " + request.getRole());
+        }
+
         keycloak.realm(keycloakRealm)
                 .users()
                 .get(userId)
@@ -74,3 +80,4 @@ public class AuthService {
                 .add(Collections.singletonList(role));
     }
 }
+
