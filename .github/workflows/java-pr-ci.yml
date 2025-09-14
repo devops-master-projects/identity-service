@@ -1,0 +1,67 @@
+name: Java PR CI
+
+on:
+  pull_request:
+    branches: [ develop, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: Backend/Identity
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install JDK 24 with SDKMAN (ACT only)
+        if: ${{ env.ACT }}
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y curl zip unzip ca-certificates
+          curl -s "https://get.sdkman.io" | bash
+          source "$HOME/.sdkman/bin/sdkman-init.sh"
+          sdk install java 24.0.2-tem
+          echo "JAVA_HOME=$HOME/.sdkman/candidates/java/current" >> $GITHUB_ENV
+          echo "$HOME/.sdkman/candidates/java/current/bin" >> $GITHUB_PATH
+          java -version
+
+      - name: Set up JDK 24 (GitHub runners)
+        if: ${{ !env.ACT }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '24'
+          cache: maven
+
+      - name: Install Maven (ACT only, if no mvnw)
+        if: ${{ env.ACT }}
+        run: |
+          if [ ! -x "./mvnw" ]; then
+            sudo apt-get update -y
+            sudo apt-get install -y maven
+            mvn -v
+          fi
+
+      - name: Maven version
+        run: ./mvnw -v || mvn -v
+
+      - name: Build + unit & integration tests
+        run: ./mvnw -B -ntp clean verify || mvn -B -ntp clean verify
+        env:
+          MAVEN_OPTS: -Xmx2g
+
+      - name: Upload test reports (always, skip on act)
+        if: always() && !env.ACT
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+            **/target/site/jacoco/**
