@@ -2,12 +2,17 @@ package org.example.identity.services;
 
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+import org.example.identity.DTO.LoginRequest;
 import org.example.identity.DTO.RegisterRequest;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.representations.idm.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -78,6 +83,32 @@ public class AuthService {
                 .roles()
                 .clientLevel(clientId)
                 .add(Collections.singletonList(role));
+    }
+
+    public Map<String, Object> login(LoginRequest request) {
+        String tokenUrl = keycloakServerUrl + "/realms/" + keycloakRealm + "/protocol/openid-connect/token";
+
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "password");
+        body.add("client_id", clientId);
+        body.add("client_secret", clientSecret);
+        body.add("username", request.getUsername());
+        body.add("password", request.getPassword());
+
+        HttpEntity<MultiValueMap<String, String>> entity = new HttpEntity<>(body, headers);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                tokenUrl,
+                HttpMethod.POST,
+                entity,
+                Map.class
+        );
+
+        return response.getBody();
     }
 }
 
