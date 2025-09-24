@@ -38,13 +38,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Testcontainers
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        classes = { AuthControllerLoginIT.BootConfig.class, AuthControllerLoginIT.TestConfig.class, AuthControllerLoginIT.GlobalHandler.class },
+        classes = { AuthControllerIT.BootConfig.class, AuthControllerIT.TestConfig.class, AuthControllerIT.GlobalHandler.class },
         properties = {
                 "spring.main.allow-bean-definition-overriding=true"
         }
 )
 @AutoConfigureMockMvc(addFilters = false)
-class AuthControllerLoginIT {
+class AuthControllerIT {
 
     private static final String REALM = "IdentityRealm";
     private static final String CLIENT_ID = "identity-service";
@@ -113,7 +113,7 @@ class AuthControllerLoginIT {
     private final AuthService authService;
 
     @Autowired
-    AuthControllerLoginIT(
+    AuthControllerIT(
             MockMvc mockMvc,
             ObjectMapper objectMapper,
             @Qualifier("keycloakAdmin") Keycloak admin,
