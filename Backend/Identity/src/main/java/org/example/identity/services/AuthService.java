@@ -2,9 +2,12 @@ package org.example.identity.services;
 
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+import org.example.identity.DTO.ChangeCredentialsRequest;
 import org.example.identity.DTO.LoginRequest;
 import org.example.identity.DTO.RegisterRequest;
+import org.example.identity.DTO.UpdateProfileRequest;
 import org.keycloak.admin.client.Keycloak;
+import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.representations.idm.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -33,6 +36,9 @@ public class AuthService {
     @Value("${keycloak.client-secret}")
     private String clientSecret;
 
+    // Constants for attribute names - choose one consistently
+    private static final String ADDRESS_ATTRIBUTE = "address"; // Changed from "city" to "address"
+
     public void register(RegisterRequest request) {
         UserRepresentation user = new UserRepresentation();
         user.setUsername(request.getUsername());
@@ -43,7 +49,7 @@ public class AuthService {
 
         Map<String, List<String>> attributes = new HashMap<>();
         if (request.getAddress() != null && !request.getAddress().isBlank()) {
-            attributes.put("city", List.of(request.getAddress()));
+            attributes.put(ADDRESS_ATTRIBUTE, List.of(request.getAddress()));
         }
         user.setAttributes(attributes);
 
@@ -63,7 +69,7 @@ public class AuthService {
         String clientId = keycloak.realm(keycloakRealm)
                 .clients()
                 .findByClientId("identity-service")
-                .get(0)
+                .getFirst()
                 .getId();
 
         RoleRepresentation role = keycloak.realm(keycloakRealm)
@@ -110,5 +116,99 @@ public class AuthService {
 
         return response.getBody();
     }
-}
 
+    public void updateProfile(String userId, UpdateProfileRequest request) {
+        UserResource userResource = keycloak.realm(keycloakRealm).users().get(userId);
+        UserRepresentation user = userResource.toRepresentation();
+
+        if (user == null) {
+            throw new RuntimeException("User not found: " + userId);
+        }
+
+        if (request.getFirstName() != null) {
+            user.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName());
+        }
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            user.setEmail(request.getEmail());
+        }
+
+        // Update custom attributes (address)
+        Map<String, List<String>> attributes = user.getAttributes();
+        if (attributes == null) {
+            attributes = new HashMap<>();
+        }
+
+        if (request.getAddress() != null) {
+            if (request.getAddress().isBlank()) {
+                // Remove address if empty string is provided
+                attributes.remove(ADDRESS_ATTRIBUTE);
+            } else {
+                // Update address with new value
+                attributes.put(ADDRESS_ATTRIBUTE, List.of(request.getAddress()));
+            }
+        }
+        user.setAttributes(attributes);
+
+        userResource.update(user);
+    }
+
+    public void changeCredentials(String userId, ChangeCredentialsRequest request) {
+        UserResource userResource = keycloak.realm(keycloakRealm).users().get(userId);
+        UserRepresentation user = userResource.toRepresentation();
+
+        if (user == null) {
+            throw new RuntimeException("User not found: " + userId);
+        }
+
+        // Verify current password by attempting to login
+        try {
+            LoginRequest loginRequest = new LoginRequest();
+            loginRequest.setUsername(user.getUsername());
+            loginRequest.setPassword(request.getCurrentPassword());
+            login(loginRequest);
+        } catch (Exception e) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        // Update password
+        CredentialRepresentation newPassword = new CredentialRepresentation();
+        newPassword.setTemporary(false);
+        newPassword.setType(CredentialRepresentation.PASSWORD);
+        newPassword.setValue(request.getNewPassword());
+        userResource.resetPassword(newPassword);
+    }
+
+    public UserRepresentation getUserProfile(String userId) {
+        UserResource userResource = keycloak.realm(keycloakRealm).users().get(userId);
+        UserRepresentation user = userResource.toRepresentation();
+
+        if (user == null) {
+            throw new RuntimeException("User not found: " + userId);
+        }
+
+        return user;
+    }
+
+    public String getUserIdFromUsername(String username) {
+        List<UserRepresentation> users = keycloak.realm(keycloakRealm)
+                .users()
+                .search(username, true);
+
+        if (users.isEmpty()) {
+            throw new RuntimeException("User not found: " + username);
+        }
+
+        return users.getFirst().getId();
+    }
+
+    public String getAddressFromUser(UserRepresentation user) {
+        if (user.getAttributes() != null && user.getAttributes().containsKey(ADDRESS_ATTRIBUTE)) {
+            List<String> addresses = user.getAttributes().get(ADDRESS_ATTRIBUTE);
+            return addresses.isEmpty() ? null : addresses.getFirst();
+        }
+        return null;
+    }
+}

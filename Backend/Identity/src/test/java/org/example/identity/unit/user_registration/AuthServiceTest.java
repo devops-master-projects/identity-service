@@ -25,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -194,7 +195,7 @@ class AuthServiceTest {
     }
 
     @Test
-    @DisplayName("register: clientId does not exist → IndexOutOfBoundsException")
+    @DisplayName("register: clientId does not exist → NoSuchElementException")
     void register_whenClientNotFound_throws() {
         RegisterRequest r = baseOkRequest();
         okCreateUserFlow();
@@ -202,7 +203,8 @@ class AuthServiceTest {
         when(realmResource.clients()).thenReturn(clientsResource);
         when(clientsResource.findByClientId(ORG_CLIENT_ID)).thenReturn(List.of());
 
-        assertThrows(IndexOutOfBoundsException.class, () -> authService.register(r));
+        // Changed from IndexOutOfBoundsException to NoSuchElementException
+        assertThrows(NoSuchElementException.class, () -> authService.register(r));
     }
 
     @Test
@@ -244,8 +246,8 @@ class AuthServiceTest {
     @ParameterizedTest(name = "address=\"{0}\" → must not set address field")
     @NullAndEmptySource
     @ValueSource(strings = {" ", "   "})
-    @DisplayName("register: blank/null address → without 'city' attribute")
-    void register_whenAddressBlank_cityNotSet(String addr) {
+    @DisplayName("register: blank/null address → without 'address' attribute")
+    void register_whenAddressBlank_addressNotSet(String addr) {
         RegisterRequest r = baseOkRequest();
         r.setAddress(addr);
 
@@ -281,7 +283,8 @@ class AuthServiceTest {
         assertEquals("User", u.getLastName());
         assertEquals("test@example.com", u.getEmail());
         assertTrue(u.isEnabled());
-        assertEquals(List.of("Novi Sad"), u.getAttributes().get("city"));
+        // Changed from "city" to "address"
+        assertEquals(List.of("Novi Sad"), u.getAttributes().get("address"));
 
         ArgumentCaptor<CredentialRepresentation> pw = ArgumentCaptor.forClass(CredentialRepresentation.class);
         verify(userResource).resetPassword(pw.capture());
@@ -312,5 +315,4 @@ class AuthServiceTest {
         inOrder.verify(roleMappingResource).clientLevel(INTERNAL_CLIENT_ID);
         inOrder.verify(roleScopeResource).add(anyList());
     }
-
 }
