@@ -12,6 +12,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -35,6 +36,8 @@ class AuthServiceIT {
 
     Keycloak admin;
     AuthService auth;
+    RestTemplate template;
+
 
     @BeforeEach
     void setUp() throws Exception {
@@ -46,7 +49,7 @@ class AuthServiceIT {
                 .password(kc.getAdminPassword())
                 .build();
 
-        auth = new AuthService(admin, REALM);
+        auth = new AuthService(admin, REALM, template);
 
         setPrivateField("keycloakServerUrl", kc.getAuthServerUrl());
         setPrivateField("clientId", CLIENT_ID);

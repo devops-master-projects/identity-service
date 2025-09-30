@@ -72,7 +72,7 @@ class AuthControllerNoClientIT {
 
         @Bean
         AuthService authService(@Qualifier("keycloakAdmin") Keycloak admin) {
-            return new AuthService(admin, REALM /* , "identity-service" */);
+            return new AuthService(admin, REALM /* , "identity-service" */, null);
         }
     }
 

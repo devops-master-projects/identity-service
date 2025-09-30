@@ -12,6 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.springframework.web.client.RestTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -38,7 +39,7 @@ class AuthServiceIT {
     Keycloak admin;
     AuthService auth;
     String testUserId;
-
+    RestTemplate template;
     @BeforeEach
     void setUp() throws Exception {
         admin = KeycloakBuilder.builder()
@@ -49,7 +50,7 @@ class AuthServiceIT {
                 .password(kc.getAdminPassword())
                 .build();
 
-        auth = new AuthService(admin, REALM);
+        auth = new AuthService(admin, REALM, template);
 
         setPrivateField("keycloakServerUrl", kc.getAuthServerUrl());
         setPrivateField("clientId", CLIENT_ID);

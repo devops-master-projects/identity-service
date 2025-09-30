@@ -6,6 +6,7 @@ import org.example.identity.services.AuthService;
 import org.junit.jupiter.api.*;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.KeycloakBuilder;
+import org.springframework.web.client.RestTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -24,6 +25,8 @@ class AuthServiceNoClientIT {
     Keycloak admin;
     AuthService auth;
 
+    RestTemplate template;
+
     @BeforeEach
     void setUp() {
         admin = KeycloakBuilder.builder()
@@ -34,7 +37,7 @@ class AuthServiceNoClientIT {
                 .password(kc.getAdminPassword())
                 .build();
 
-        auth = new AuthService(admin, REALM);
+        auth = new AuthService(admin, REALM, template);
 
     }
 

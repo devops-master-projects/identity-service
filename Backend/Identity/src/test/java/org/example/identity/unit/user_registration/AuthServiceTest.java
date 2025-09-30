@@ -54,7 +54,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setup() throws Exception {
-        authService = new AuthService(keycloak, null);
+        authService = new AuthService(keycloak, null, null);
         Field realmField = AuthService.class.getDeclaredField("keycloakRealm");
         realmField.setAccessible(true);
         realmField.set(authService, REALM);

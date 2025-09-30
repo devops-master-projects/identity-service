@@ -30,6 +30,7 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.RestTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -108,7 +109,7 @@ class AuthControllerProfileIT {
         @Bean
         @Primary
         AuthService authService(@Qualifier("keycloakAdmin") Keycloak admin) {
-            return new AuthService(admin, REALM);
+            return new AuthService(admin, REALM, new RestTemplate());
         }
     }
 
