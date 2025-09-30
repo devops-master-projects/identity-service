@@ -27,6 +27,8 @@ public class AuthService {
 
     private final Keycloak keycloak;
     private final String keycloakRealm;
+    private final RestTemplate restTemplate;
+
     @Value("${keycloak.server-url}")
     private String keycloakServerUrl;
 
@@ -35,6 +37,9 @@ public class AuthService {
 
     @Value("${keycloak.client-secret}")
     private String clientSecret;
+
+    @Value("${notification.service.url}")
+    private String notificationServiceUrl;
 
     // Constants for attribute names - choose one consistently
     private static final String ADDRESS_ATTRIBUTE = "address"; // Changed from "city" to "address"
@@ -57,8 +62,9 @@ public class AuthService {
         if (response.getStatus() != 201) {
             throw new RuntimeException("Failed to create user: " + response.getStatus());
         }
-
+        System.out.println(request.getRole());
         String userId = response.getLocation().getPath().replaceAll(".*/([^/]+)$", "$1");
+        System.out.println("userid: " + userId);
 
         CredentialRepresentation password = new CredentialRepresentation();
         password.setTemporary(false);
@@ -78,7 +84,6 @@ public class AuthService {
                 .roles()
                 .get(request.getRole())
                 .toRepresentation();
-
         if (role == null) {
             throw new IllegalStateException("Role not found: " + request.getRole());
         }
@@ -89,6 +94,23 @@ public class AuthService {
                 .roles()
                 .clientLevel(clientId)
                 .add(Collections.singletonList(role));
+
+        initializeNotificationSettings(userId, request.getRole());
+    }
+
+    private void initializeNotificationSettings(String userId, String role) {
+
+        String url = String.format("%s/api/notification-settings/init?userId=%s&role=%s",
+                notificationServiceUrl, userId, role);
+
+        try {
+            restTemplate.postForEntity(url, null, Void.class);
+            System.out.printf("Initialized notification settings for userId=%s with role=%s%n",
+                    userId, role);
+        } catch (Exception e) {
+            System.err.printf("Failed to initialize notification settings for userId=%s: %s%n",
+                    userId, e.getMessage());
+        }
     }
 
     public Map<String, Object> login(LoginRequest request) {

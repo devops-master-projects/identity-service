@@ -40,7 +40,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setup() throws Exception {
-        authService = new AuthService(keycloak, KEYCLOAK_REALM);
+        authService = new AuthService(keycloak, KEYCLOAK_REALM, new RestTemplate());
 
         setPrivateField("keycloakServerUrl", KEYCLOAK_SERVER_URL);
         setPrivateField("clientId", CLIENT_ID);
@@ -56,7 +56,7 @@ class AuthServiceTest {
     }
 
     private void injectMockRestTemplate() throws Exception {
-        authService = new AuthService(keycloak, KEYCLOAK_REALM) {
+        authService = new AuthService(keycloak, KEYCLOAK_REALM, new RestTemplate()) {
             @Override
             public Map<String, Object> login(LoginRequest request) {
                 String tokenUrl = KEYCLOAK_SERVER_URL + "/realms/" + KEYCLOAK_REALM + "/protocol/openid-connect/token";

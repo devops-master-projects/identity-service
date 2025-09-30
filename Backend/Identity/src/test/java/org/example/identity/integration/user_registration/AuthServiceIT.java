@@ -44,7 +44,7 @@ class AuthServiceIT {
                 .password(kc.getAdminPassword())
                 .build();
 
-        auth = new AuthService(admin, REALM);
+        auth = new AuthService(admin, REALM, null);
 
         var realm = admin.realm(REALM);
         realm.users().search("it-user", 0, 10).forEach(u -> realm.users().delete(u.getId()));
