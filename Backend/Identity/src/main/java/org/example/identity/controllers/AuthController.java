@@ -2,10 +2,7 @@ package org.example.identity.controllers;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.example.identity.DTO.ChangeCredentialsRequest;
-import org.example.identity.DTO.LoginRequest;
-import org.example.identity.DTO.RegisterRequest;
-import org.example.identity.DTO.UpdateProfileRequest;
+import org.example.identity.DTO.*;
 import org.example.identity.services.AuthService;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.springframework.http.ResponseEntity;
@@ -79,4 +76,19 @@ public class AuthController {
         }
         throw new RuntimeException("Invalid authentication token");
     }
+
+    @GetMapping("/host/{hostId}")
+    public ResponseEntity<HostProfileDto> getHostProfile(@PathVariable String hostId) {
+        UserRepresentation user = authService.getUserProfile(hostId);
+
+        HostProfileDto dto = new HostProfileDto(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getEmail()
+        );
+
+        return ResponseEntity.ok(dto);
+    }
+
 }

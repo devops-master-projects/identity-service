@@ -27,6 +27,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/host/*").permitAll()
                         .requestMatchers("/api/auth/profile", "/api/auth/credentials").authenticated()
                         .anyRequest().authenticated()
                 )
