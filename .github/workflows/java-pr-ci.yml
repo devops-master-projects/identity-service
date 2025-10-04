@@ -1,8 +1,14 @@
 name: Java PR CI
-
 on:
   pull_request:
     branches: [ develop, master ]
+  push:
+    branches: [ develop, master, feature/** ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write  # Add this for GHCR push
 
 jobs:
   build-and-test:
@@ -12,13 +18,12 @@ jobs:
     defaults:
       run:
         working-directory: Backend/Identity
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
+      
       - name: Install JDK 24 with SDKMAN (ACT only)
         if: ${{ env.ACT }}
         run: |
@@ -30,7 +35,7 @@ jobs:
           echo "JAVA_HOME=$HOME/.sdkman/candidates/java/current" >> $GITHUB_ENV
           echo "$HOME/.sdkman/candidates/java/current/bin" >> $GITHUB_PATH
           java -version
-
+      
       - name: Set up JDK 24 (GitHub runners)
         if: ${{ !env.ACT }}
         uses: actions/setup-java@v4
@@ -38,7 +43,7 @@ jobs:
           distribution: temurin
           java-version: '24'
           cache: maven
-
+      
       - name: Install Maven (ACT only, if no mvnw)
         if: ${{ env.ACT }}
         run: |
@@ -47,15 +52,15 @@ jobs:
             sudo apt-get install -y maven
             mvn -v
           fi
-
+      
       - name: Maven version
         run: ./mvnw -v || mvn -v
-
+      
       - name: Build + unit & integration tests
         run: ./mvnw -B -ntp clean verify || mvn -B -ntp clean verify
         env:
           MAVEN_OPTS: -Xmx2g
-
+      
       - name: Upload test reports (always, skip on act)
         if: always() && !env.ACT
         uses: actions/upload-artifact@v4
@@ -65,3 +70,72 @@ jobs:
             **/target/surefire-reports/**
             **/target/failsafe-reports/**
             **/target/site/jacoco/**
+
+  # NEW KANIKO JOB
+  kaniko:
+    if: github.event_name == 'push'
+    needs: [ build-and-test ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 24 (for reading pom.xml version)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '24'
+
+      - name: Compute vars
+        id: v
+        run: |
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          echo "pkgver=$(mvn -f Backend/Identity/pom.xml help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_OUTPUT
+
+      - name: Set image name (GHCR)
+        id: img
+        run: |
+          echo "name=ghcr.io/${{ github.repository_owner }}/identity-service" >> $GITHUB_OUTPUT
+
+      - name: Compute tags
+        id: tags
+        run: |
+          BR="${{ steps.v.outputs.branch }}"
+          PV="${{ steps.v.outputs.pkgver }}"
+          SH="${{ steps.v.outputs.sha }}"
+          if [ "$BR" = "master" ] || [ "$BR" = "main" ]; then
+            TAGS="latest,${PV},${PV}-${SH},sha-${SH}"
+          elif [ "$BR" = "develop" ]; then
+            TAGS="develop,${PV}-dev-${SH},sha-${SH}"
+          else
+            SAFE=$(echo "$BR" | tr '/' '-' )
+            TAGS="${SAFE},${SAFE}-${SH},sha-${SH}"
+          fi
+          echo "list=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push with Kaniko (GHCR)
+        run: |
+          DESTINATIONS=""
+          IFS=',' read -ra TAGS <<< "${{ steps.tags.outputs.list }}"
+          for tag in "${TAGS[@]}"; do
+            DESTINATIONS="$DESTINATIONS --destination=${{ steps.img.outputs.name }}:$tag"
+          done
+          
+          docker run \
+            -v ${{ github.workspace }}/Backend/Identity:/workspace \
+            -v $HOME/.docker/config.json:/kaniko/.docker/config.json:ro \
+            gcr.io/kaniko-project/executor:latest \
+            --context=/workspace \
+            --dockerfile=Dockerfile \
+            $DESTINATIONS \
+            --cache=true \
+            --cache-repo=${{ steps.img.outputs.name }}-cache \
+            --verbosity=debug
