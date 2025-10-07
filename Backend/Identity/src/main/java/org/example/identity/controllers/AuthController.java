@@ -77,6 +77,7 @@ public class AuthController {
         throw new RuntimeException("Invalid authentication token");
     }
 
+
     @GetMapping("/host/{hostId}")
     public ResponseEntity<HostProfileDto> getHostProfile(@PathVariable String hostId) {
         UserRepresentation user = authService.getUserProfile(hostId);
@@ -90,5 +91,13 @@ public class AuthController {
 
         return ResponseEntity.ok(dto);
     }
+
+    @DeleteMapping("/delete-account")
+    public ResponseEntity<Void> deleteAccount(Authentication authentication) {
+        authService.deleteAccount(authentication);
+        return ResponseEntity.noContent().build();
+    }
+
+
 
 }
