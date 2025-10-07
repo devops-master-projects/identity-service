@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    
+    <springProperty scope="context" name="appName" source="spring.application.name"/>
+    <springProperty scope="context" name="lokiUrl" source="loki.url" defaultValue="http://localhost:3100"/>
+    
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss} - %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
+        <http>
+            <url>${lokiUrl}/loki/api/v1/push</url>
+        </http>
+        <format>
+            <label>
+                <pattern>app=${appName:-unknown},host=${HOSTNAME:-localhost},level=%level</pattern>
+            </label>
+            <message>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            </message>
+            <sortByTime>true</sortByTime>
+        </format>
+        <batchSize>100</batchSize>
+        <batchTimeoutMs>5000</batchTimeoutMs>
+        <sendQueueMaxBytes>41943040</sendQueueMaxBytes>
+        <maxRetries>0</maxRetries>
+        <internalQueuesCheckTimeoutMs>25</internalQueuesCheckTimeoutMs>
+        <dropRateLimitedBatches>true</dropRateLimitedBatches>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="LOKI"/>
+    </root>
+
+    <logger name="org.apache.http" level="WARN"/>
+    <logger name="org.elasticsearch.client" level="WARN"/>
+    <logger name="com.github.loki4j" level="WARN"/>
+</configuration>
