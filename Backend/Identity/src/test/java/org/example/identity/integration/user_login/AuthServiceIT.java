@@ -17,9 +17,20 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.lang.reflect.Field;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.oauth2.jwt.Jwt;
+import static org.mockito.ArgumentMatchers.*;
+
 
 @Testcontainers
 class AuthServiceIT {
@@ -49,6 +60,7 @@ class AuthServiceIT {
                 .password(kc.getAdminPassword())
                 .build();
 
+        template = mock(RestTemplate.class);
         auth = new AuthService(admin, REALM, template);
 
         setPrivateField("keycloakServerUrl", kc.getAuthServerUrl());
@@ -235,4 +247,54 @@ class AuthServiceIT {
         assertTrue(result.containsKey("access_token"));
         assertTrue(result.containsKey("token_type"));
     }
+
+    @Test
+    @DisplayName("deleteAccount: host can delete account and Keycloak user is removed")
+    void deleteAccount_happyPath() {
+        var register = new RegisterRequest();
+        register.setUsername("host-delete");
+        register.setPassword("test123!");
+        register.setFirstName("Host");
+        register.setLastName("Delete");
+        register.setEmail("host-delete@example.com");
+        register.setRole("host");
+        register.setAddress("Novi Sad");
+        auth.register(register);
+
+        var userId = auth.getUserIdFromUsername("host-delete");
+        assertNotNull(userId);
+
+        when(template.exchange(
+                contains("/host/can-delete-account"),
+                eq(HttpMethod.GET),
+                any(),
+                eq(Boolean.class)
+        )).thenReturn(new ResponseEntity<>(true, HttpStatus.OK));
+
+        when(template.exchange(
+                contains("/api/accommodations/host/all"),
+                eq(HttpMethod.DELETE),
+                any(),
+                eq(Void.class)
+        )).thenReturn(new ResponseEntity<>(HttpStatus.NO_CONTENT));
+
+        Jwt jwt = Jwt.withTokenValue("fake-token")
+                .claim("sub", userId)
+                .claim("resource_access", Map.of(
+                        "identity-service", Map.of("roles", List.of("host"))
+                ))
+                .header("alg", "none")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        var authentication = mock(org.springframework.security.core.Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(jwt);
+
+        assertDoesNotThrow(() -> auth.deleteAccount(authentication));
+
+        var remaining = admin.realm(REALM).users().search("host-delete", 0, 5);
+        assertTrue(remaining.isEmpty(), "User should be deleted from Keycloak");
+    }
+
 }
