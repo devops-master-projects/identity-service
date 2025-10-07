@@ -27,6 +27,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.server.ResponseStatusException;
+import static org.mockito.Mockito.*;
+import java.time.Instant;
+
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AuthService Tests")
 class AuthServiceTest {
@@ -45,6 +53,10 @@ class AuthServiceTest {
 
     @InjectMocks
     private AuthService authService;
+
+    @Mock
+    private RestTemplate restTemplate;
+
 
     private final String TEST_REALM = "test-realm";
     private final String TEST_USER_ID = "test-user-id";
@@ -284,6 +296,88 @@ class AuthServiceTest {
         inOrder.verify(spyAuthService).login(any(LoginRequest.class));
         inOrder.verify(userResource).resetPassword(any(CredentialRepresentation.class));
     }
+
+    @Test
+    @DisplayName("deleteAccount: host can delete account successfully")
+    void deleteAccount_ShouldDeleteUser_WhenHostCanDelete() {
+        Jwt jwt = Jwt.withTokenValue("fake-token")
+                .claim("sub", TEST_USER_ID)
+                .claim("resource_access", Map.of("identity-service", Map.of("roles", List.of("host"))))
+                .header("alg", "none")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(jwt);
+
+        when(restTemplate.exchange(
+                contains("/host/can-delete-account"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(Boolean.class)
+        )).thenReturn(new ResponseEntity<>(true, HttpStatus.OK));
+
+        when(restTemplate.exchange(
+                contains("/api/accommodations/host/all"),
+                eq(HttpMethod.DELETE),
+                any(HttpEntity.class),
+                eq(Void.class)
+        )).thenReturn(new ResponseEntity<>(HttpStatus.NO_CONTENT));
+
+        when(userResource.toRepresentation()).thenReturn(new UserRepresentation());
+        doNothing().when(userResource).remove();
+        when(usersResource.get(TEST_USER_ID)).thenReturn(userResource);
+        when(realmResource.users()).thenReturn(usersResource);
+        when(keycloak.realm(TEST_REALM)).thenReturn(realmResource);
+
+        assertDoesNotThrow(() -> authService.deleteAccount(authentication));
+
+        verify(restTemplate).exchange(contains("/host/can-delete-account"), eq(HttpMethod.GET), any(), eq(Boolean.class));
+        verify(restTemplate).exchange(contains("/api/accommodations/host/all"), eq(HttpMethod.DELETE), any(), eq(Void.class));
+        verify(userResource).remove();
+    }
+
+    @Test
+    @DisplayName("deleteAccount: guest cannot delete account due to active reservations")
+    void deleteAccount_ShouldThrow_WhenGuestHasActiveReservations() {
+        Jwt jwt = Jwt.withTokenValue("fake-token")
+                .claim("sub", TEST_USER_ID)
+                .claim("resource_access", Map.of("identity-service", Map.of("roles", List.of("guest"))))
+                .header("alg", "none")
+                .issuedAt(Instant.now())
+                .expiresAt(Instant.now().plusSeconds(3600))
+                .build();
+
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(jwt);
+
+        when(restTemplate.exchange(
+                contains("/guest/can-delete-account"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(Boolean.class)
+        )).thenReturn(new ResponseEntity<>(false, HttpStatus.OK));
+
+        lenient().when(userResource.toRepresentation()).thenReturn(new UserRepresentation());
+        lenient().when(usersResource.get(TEST_USER_ID)).thenReturn(userResource);
+        lenient().when(realmResource.users()).thenReturn(usersResource);
+        lenient().when(keycloak.realm(TEST_REALM)).thenReturn(realmResource);
+
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> authService.deleteAccount(authentication)
+        );
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatusCode());
+        assertTrue(exception.getReason().contains("Guest cannot delete the account"));
+
+        verify(userResource, never()).remove();
+    }
+
+
+
 
     private UserRepresentation createTestUser() {
         UserRepresentation user = new UserRepresentation();
